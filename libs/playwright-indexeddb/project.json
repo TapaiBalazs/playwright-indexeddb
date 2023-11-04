@@ -1,0 +1,48 @@
+{
+  "name": "playwright-indexeddb",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/playwright-indexeddb/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/playwright-indexeddb",
+        "tsConfig": "libs/playwright-indexeddb/tsconfig.lib.json",
+        "packageJson": "libs/playwright-indexeddb/package.json",
+        "main": "libs/playwright-indexeddb/src/index.ts",
+        "assets": ["libs/playwright-indexeddb/*.md"]
+      }
+    },
+    "publish": {
+      "command": "node tools/scripts/publish.mjs playwright-indexeddb {args.ver} {args.tag}",
+      "dependsOn": ["build"]
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": [
+          "libs/playwright-indexeddb/**/*.ts",
+          "libs/playwright-indexeddb/package.json"
+        ]
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "options": {
+        "jestConfig": "libs/playwright-indexeddb/jest.config.ts",
+        "passWithNoTests": true
+      },
+      "configurations": {
+        "ci": {
+          "ci": true,
+          "codeCoverage": true
+        }
+      }
+    }
+  },
+  "tags": []
+}

@@ -1,0 +1,28 @@
+<mat-toolbar color="primary">
+  <mat-toolbar-row>
+    <h1>@btapai/playwright-indexeddb</h1>
+  </mat-toolbar-row>
+  <mat-toolbar-row color="accent">
+    <a
+      mat-raised-button
+      routerLinkActive="mat-accent"
+      routerLink="/playwright-indexeddb/key-value-pairs"
+      >Key Value Pairs</a
+    >
+    <a
+      mat-raised-button
+      routerLinkActive="mat-accent"
+      routerLink="/playwright-indexeddb/auto-increment"
+      >Auto Increment</a
+    >
+  </mat-toolbar-row>
+</mat-toolbar>
+
+<main>
+  <router-outlet></router-outlet>
+</main>
+
+<mat-toolbar class="footer">
+  <!--  TODO: link to LICENSE.md-->
+  Copyright © 2023, Balázs Tápai
+</mat-toolbar>
