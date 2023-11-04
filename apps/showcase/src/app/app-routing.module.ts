@@ -8,7 +8,7 @@ export const routes: Route[] = [
       {
         path: '',
         loadChildren: () =>
-          import('./modules/rxidb-showcase/indexed-db-showcase.module').then(
+          import('./modules/indexed-db-showcase/indexed-db-showcase.module').then(
             (m) => m.IndexedDbShowcaseModule
           ),
       },
