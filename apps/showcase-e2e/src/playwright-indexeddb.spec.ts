@@ -1,5 +1,5 @@
 import { IdbHelper } from '@btapai/playwright-indexeddb';
-import { expect, Locator, selectors, test } from '@playwright/test';
+import { expect, Locator, test } from '@playwright/test';
 import { Page } from 'playwright';
 
 const IDB_DATABASE_NAME = 'FORM_CACHE';
@@ -12,7 +12,6 @@ test.describe('@btapai/playwright-indexeddb', () => {
     let playwrightIdb: IdbHelper;
 
     test.beforeAll(async ({ browser }) => {
-      selectors.setTestIdAttribute('data-test-id');
       page = await browser.newPage();
     });
 
@@ -127,6 +126,22 @@ test.describe('@btapai/playwright-indexeddb', () => {
         })
 
       await page.reload();
+
+      await fillInputField(inputs.addressInput, 'Address line 1', '23rd Street 12');
+      await test.step(`the form gets submitted`, async () => {
+        const submitButton = page.getByTestId(`submit button`)
+        await expect(submitButton).toBeEnabled()
+        await submitButton.click()
+      });
+
+      await test.step(`Waiting for the save event and DB write to occur`, () => page.waitForTimeout(1100))
+
+      const IdbContentsAfterSubmit = await playwrightIdb
+        .store(IDB_DATABASE_STORE_NAME)
+        .readItem(IDB_STORE_KEY_NAME)
+
+      expect(IdbContentsAfterSubmit).toBe(undefined)
+
     })
 
   });

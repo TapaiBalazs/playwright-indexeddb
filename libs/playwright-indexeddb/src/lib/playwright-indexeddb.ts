@@ -340,7 +340,7 @@ export class IdbHelper {
           };
         });
 
-        return operationResult ? (operationResult as T) : null;
+        return (operationResult as T);
       },
       {
         dbName: this.databaseName!,
