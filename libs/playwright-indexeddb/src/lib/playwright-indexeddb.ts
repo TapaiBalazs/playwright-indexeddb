@@ -6,6 +6,7 @@ export type PlaywrightIDbStore = {
     key: string | number,
     value: T
   ) => Promise<PlaywrightIDbStore>;
+  addItem: <T>(value: T) => Promise<PlaywrightIDbStore>;
   readItem: <T>(key: string | number) => Promise<T>;
   deleteItem: (key: string | number) => Promise<PlaywrightIDbStore>;
   keys: () => Promise<(string | number)[]>;
@@ -24,8 +25,7 @@ export class IdbHelper {
   private databaseVersion?: number;
   private stores: Set<string> = new Set();
 
-  constructor(private readonly page: Page) {
-  }
+  constructor(private readonly page: Page) {}
 
   async init(
     database: string,
@@ -37,48 +37,48 @@ export class IdbHelper {
       );
     }
 
-    const {
-      databaseName,
-      databaseVersion
-    } = await test.step(`Initialise IndexedDB with name ${database} and version ${versionConfiguredByUser || 1}`, async () => {
-      return this.page.evaluate(
-        async ({ db, version }) => {
-          if (!window.indexedDB) {
-            throw new Error(
-              `You must open the page first by using 'page.goto()' to be able to interact with indexedDb`
-            );
-          }
-          const request: IDBOpenDBRequest =
-            version != null
-              ? window.indexedDB.open(db, version)
-              : window.indexedDB.open(db);
-          const newDbInstance = await new Promise<IDBDatabase>(
-            (resolve, reject) => {
-              request.onerror = (e: Event) => {
-                reject(e);
-              };
-              request.onsuccess = (e: Event) => {
-                request.onerror = () => void 0;
-                const newDatabase = (e.target as any).result as IDBDatabase;
-                newDatabase.onversionchange = () => void 0;
-                resolve(newDatabase);
-              };
+    const { databaseName, databaseVersion } =
+      await test.step(`Initialise IndexedDB with name ${database} and version ${
+        versionConfiguredByUser || 1
+      }`, async () => {
+        return this.page.evaluate(
+          async ({ db, version }) => {
+            if (!window.indexedDB) {
+              throw new Error(
+                `You must open the page first by using 'page.goto()' to be able to interact with indexedDb`
+              );
             }
-          );
+            const request: IDBOpenDBRequest =
+              version != null
+                ? window.indexedDB.open(db, version)
+                : window.indexedDB.open(db);
+            const newDbInstance = await new Promise<IDBDatabase>(
+              (resolve, reject) => {
+                request.onerror = (e: Event) => {
+                  reject(e);
+                };
+                request.onsuccess = (e: Event) => {
+                  request.onerror = () => void 0;
+                  const newDatabase = (e.target as any).result as IDBDatabase;
+                  newDatabase.onversionchange = () => void 0;
+                  resolve(newDatabase);
+                };
+              }
+            );
 
-          newDbInstance.close();
+            newDbInstance.close();
 
-          return {
-            databaseName: newDbInstance.name,
-            databaseVersion: newDbInstance.version,
-          };
-        },
-        {
-          db: database,
-          version: versionConfiguredByUser,
-        }
-      );
-    })
+            return {
+              databaseName: newDbInstance.name,
+              databaseVersion: newDbInstance.version,
+            };
+          },
+          {
+            db: database,
+            version: versionConfiguredByUser,
+          }
+        );
+      });
 
     this.databaseName = databaseName;
     this.databaseVersion = databaseVersion;
@@ -87,7 +87,7 @@ export class IdbHelper {
   async createObjectStore(
     storeName: string,
     options?: IDBObjectStoreParameters
-  ): Promise<void> {
+  ): Promise<PlaywrightIDbStore> {
     if (!this.databaseName) {
       throw new Error(
         `Please call the ".init()" method before creating an object store`
@@ -123,20 +123,16 @@ export class IdbHelper {
           }
 
           openDbConnection.close();
-          console.log('AAAAA');
-          console.warn('dbversion', openDbConnection.version);
           const storeDbConnection = await new Promise<IDBDatabase>(
             (resolve, reject) => {
               const request: IDBOpenDBRequest = window.indexedDB.open(
                 openDbConnection.name,
                 openDbConnection.version + 1
               );
-              console.warn('newdbversion', openDbConnection.version + 1);
               request.onerror = (e: Event) => {
                 reject(e);
               };
               request.onupgradeneeded = (e: Event) => {
-                console.warn('onupgradeneeded');
                 request.onerror = () => void 0;
                 const db = (e.target as any).result as IDBDatabase;
                 db.onversionchange = () => void 0;
@@ -157,18 +153,21 @@ export class IdbHelper {
           storeOptions: options,
         }
       );
-    })
-
+    });
 
     this.stores.add(storeName);
+
+    return this.store(storeName);
   }
 
   readItem<T>(store: string, key: string | number): Promise<T> {
-    return test.step(`Read "${key}" from "${store}" ObjectStore`, () => this.makeCreateReadUpdateDeleteRequest<T>('get', store, key))
+    return test.step(`Read "${key}" from "${store}" ObjectStore`, () =>
+      this.makeCreateReadUpdateDeleteRequest<T>('get', store, key));
   }
 
   deleteItem(store: string, key: string | number): Promise<PlaywrightIDbStore> {
-    return test.step(`Delete "${key}" from "${store}" ObjectStore`, () => this.makeCreateReadUpdateDeleteRequest('delete', store, key))
+    return test.step(`Delete "${key}" from "${store}" ObjectStore`, () =>
+      this.makeCreateReadUpdateDeleteRequest('delete', store, key));
   }
 
   createItem<T>(
@@ -176,11 +175,13 @@ export class IdbHelper {
     key: string | number,
     value: T
   ): Promise<PlaywrightIDbStore> {
-    return test.step(`Create "${key}" with value "${value}" in "${store}" ObjectStore`, () => this.makeCreateReadUpdateDeleteRequest<T>('add', store, key, value))
+    return test.step(`Create "${key}" with value "${value}" in "${store}" ObjectStore`, () =>
+      this.makeCreateReadUpdateDeleteRequest<T>('add', store, key, value));
   }
 
   addItem(store: string, value: unknown): Promise<PlaywrightIDbStore> {
-    return test.step(`Add entry "${value}" in "${store}" ObjectStore`, () => this.makeCreateReadUpdateDeleteRequest('add', store, null, value))
+    return test.step(`Add entry "${value}" in "${store}" ObjectStore`, () =>
+      this.makeCreateReadUpdateDeleteRequest('add', store, null, value));
   }
 
   updateItem(
@@ -188,7 +189,8 @@ export class IdbHelper {
     key: string | number,
     value: unknown
   ): Promise<PlaywrightIDbStore> {
-    return test.step(`Update "${key}" with value "${value}" in "${store}" ObjectStore`, () => this.makeCreateReadUpdateDeleteRequest('put', store, key, value))
+    return test.step(`Update "${key}" with value "${value}" in "${store}" ObjectStore`, () =>
+      this.makeCreateReadUpdateDeleteRequest('put', store, key, value));
   }
 
   store(storeName: string): PlaywrightIDbStore {
@@ -200,20 +202,22 @@ export class IdbHelper {
     return {
       createItem: <T>(key: string | number, value: T) =>
         this.createItem<T>(storeName, key, value),
+      addItem: <T>(value: T) => this.addItem(storeName, value),
       readItem: <T>(key: string | number) => this.readItem<T>(storeName, key),
-      deleteItem: (key: string | number) =>
-        this.deleteItem(storeName, key),
+      deleteItem: (key: string | number) => this.deleteItem(storeName, key),
       keys: () => this.getKeys(storeName),
       values: <T>() => this.getValues<T>(storeName),
     };
   }
 
   getKeys(storeName: string): Promise<(string | number)[]> {
-    return test.step(`Retrieving all keys from ${storeName} ObjectStore`, () => this.makeMetadataRequest<string | number>(storeName, 'getAllKeys'))
+    return test.step(`Retrieving all keys from ${storeName} ObjectStore`, () =>
+      this.makeMetadataRequest<string | number>(storeName, 'getAllKeys'));
   }
 
   getValues<T>(storeName: string): Promise<T[]> {
-    return test.step(`Retrieving all values from ${storeName} ObjectStore`, () => this.makeMetadataRequest<T>(storeName, 'getAll'))
+    return test.step(`Retrieving all values from ${storeName} ObjectStore`, () =>
+      this.makeMetadataRequest<T>(storeName, 'getAll'));
   }
 
   private async makeMetadataRequest<T>(
@@ -289,12 +293,12 @@ export class IdbHelper {
   ): Promise<T | PlaywrightIDbStore> {
     const dbOperationResult = await this.page.evaluate(
       async ({
-               dbName,
-               store,
-               storeKey,
-               storeValue,
-               dbOperation,
-             }): Promise<T | null> => {
+        dbName,
+        store,
+        storeKey,
+        storeValue,
+        dbOperation,
+      }): Promise<T | null> => {
         const request = window.indexedDB.open(dbName);
 
         const openDbConnection: IDBDatabase = await new Promise<IDBDatabase>(
@@ -340,7 +344,7 @@ export class IdbHelper {
           };
         });
 
-        return (operationResult as T);
+        return operationResult as T;
       },
       {
         dbName: this.databaseName!,
