@@ -1,4 +1,4 @@
-import { IdbHelper } from '@btapai/playwright-indexeddb';
+import { PlaywrightIdbHelper } from '@btapai/playwright-indexeddb';
 import { expect, Locator, test } from '@playwright/test';
 import { Page } from 'playwright';
 
@@ -8,11 +8,11 @@ test.describe('@btapai/playwright-indexeddb', () => {
     const IDB_DATABASE_STORE_NAME = 'user_form_store';
     const IDB_STORE_KEY_NAME = 'user_form';
     let page: Page;
-    let playwrightIdb: IdbHelper;
+    let playwrightIdb: PlaywrightIdbHelper;
 
     test.beforeEach(async ({ browser }) => {
       page = await browser.newPage();
-      playwrightIdb = new IdbHelper(page);
+      playwrightIdb = new PlaywrightIdbHelper(page);
 
       await page.goto('/');
 
@@ -30,7 +30,7 @@ test.describe('@btapai/playwright-indexeddb', () => {
         page.waitForTimeout(1100));
 
       const values = await playwrightIdb
-        .store(IDB_DATABASE_STORE_NAME)
+        .getStore(IDB_DATABASE_STORE_NAME)
         .readItem(IDB_STORE_KEY_NAME);
 
       expect(values).toEqual({
@@ -58,14 +58,15 @@ test.describe('@btapai/playwright-indexeddb', () => {
       await test.step(`Waiting for the debounceTime to start a db write`, () =>
         page.waitForTimeout(1100));
 
-      // The user manually clears the IndexedDb (e.g.: devtools)
-      const keysAfterDeletion = await playwrightIdb
-        .store(IDB_DATABASE_STORE_NAME)
-        .deleteItem(IDB_STORE_KEY_NAME)
-        .then((store) => store.keys());
-      expect(keysAfterDeletion).toHaveLength(0);
+      await test.step(`The user manually clears the IndexeDb from devtools`, async () => {
+        const keysAfterDeletion = await playwrightIdb
+          .getStore(IDB_DATABASE_STORE_NAME)
+          .deleteItem(IDB_STORE_KEY_NAME)
+          .then((store) => store.keys());
+        expect(keysAfterDeletion).toHaveLength(0);
 
-      page.reload();
+        page.reload();
+      })
 
       await fillInputField(inputs.firstNameInput, 'First name', '');
       await fillInputField(inputs.lastNameInput, 'Last name', '');
@@ -90,7 +91,7 @@ test.describe('@btapai/playwright-indexeddb', () => {
         page.waitForTimeout(1100));
 
       await playwrightIdb
-        .store(IDB_DATABASE_STORE_NAME)
+        .getStore(IDB_DATABASE_STORE_NAME)
         .createItem(IDB_STORE_KEY_NAME, {
           firstName: 'John',
           lastName: 'McClane',
@@ -114,7 +115,7 @@ test.describe('@btapai/playwright-indexeddb', () => {
       const inputs = await ensureInputFieldsAreVisible(page);
 
       await playwrightIdb
-        .store(IDB_DATABASE_STORE_NAME)
+        .getStore(IDB_DATABASE_STORE_NAME)
         .createItem(IDB_STORE_KEY_NAME, {
           firstName: 'John',
           lastName: 'McClane',
@@ -139,7 +140,7 @@ test.describe('@btapai/playwright-indexeddb', () => {
         page.waitForTimeout(1100));
 
       const IdbContentsAfterSubmit = await playwrightIdb
-        .store(IDB_DATABASE_STORE_NAME)
+        .getStore(IDB_DATABASE_STORE_NAME)
         .readItem(IDB_STORE_KEY_NAME);
 
       expect(IdbContentsAfterSubmit).toBe(undefined);
@@ -150,11 +151,11 @@ test.describe('@btapai/playwright-indexeddb', () => {
     const IDB_DATABASE_NAME = 'AUTO_INCREMENT';
     const IDB_DATABASE_STORE_NAME = 'store';
     let page: Page;
-    let playwrightIdb: IdbHelper;
+    let playwrightIdb: PlaywrightIdbHelper;
 
     test.beforeEach(async ({ browser }) => {
       page = await browser.newPage();
-      playwrightIdb = new IdbHelper(page);
+      playwrightIdb = new PlaywrightIdbHelper(page);
 
       await page.goto('/playwright-indexeddb/auto-increment');
 
@@ -206,7 +207,7 @@ test.describe('@btapai/playwright-indexeddb', () => {
         await queueInput.press('Enter');
       });
 
-      const store = playwrightIdb.store(IDB_DATABASE_STORE_NAME);
+      const store = playwrightIdb.getStore(IDB_DATABASE_STORE_NAME);
 
       const values = await store.values();
       expect(values).toHaveLength(7);
@@ -232,7 +233,7 @@ test.describe('@btapai/playwright-indexeddb', () => {
         await expect(thirdRow).toContainText('1337');
       });
 
-      const store = playwrightIdb.store(IDB_DATABASE_STORE_NAME);
+      const store = playwrightIdb.getStore(IDB_DATABASE_STORE_NAME);
 
       await test.step(`Delete the second item using playwright-indexeddb`, async () => {
         await store.deleteItem(2);
@@ -253,6 +254,31 @@ test.describe('@btapai/playwright-indexeddb', () => {
         await expect(firstRow).toContainText('test');
         await expect(secondRow).not.toBeVisible();
         await expect(thirdRow).not.toBeVisible();
+      });
+    });
+
+    test(`can update items by keys`, async () => {
+      const firstRow = page.getByTestId('row_1');
+      const secondRow = page.getByTestId('row_2');
+      const thirdRow = page.getByTestId('row_3');
+
+      await test.step(`The rows in the application should have 3 rows with values "test, test2, 1337"`, async () => {
+        await expect(firstRow).toContainText('test');
+        await expect(secondRow).toContainText('test2');
+        await expect(thirdRow).toContainText('1337');
+      });
+
+      const store = playwrightIdb.getStore(IDB_DATABASE_STORE_NAME);
+
+      await test.step(`Update the second item using playwright-indexeddb and reload the page`, async () => {
+        await store.updateItem(2, 'updated-test2');
+        await page.reload()
+      });
+
+      await test.step(`The second and third rows should be deleted and the application should have 2 rows with values "test"`, async () => {
+        await expect(firstRow).toContainText('test');
+        await expect(secondRow).toContainText('updated-test2');
+        await expect(thirdRow).toContainText('1337');
       });
     });
   });

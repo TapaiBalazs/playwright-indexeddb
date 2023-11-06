@@ -1,1 +1,1 @@
-export * from './lib/playwright-indexeddb';
+export * from './lib/playwright-idb-helper';
