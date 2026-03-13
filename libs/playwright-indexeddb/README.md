@@ -12,10 +12,27 @@ import { PlaywrightIdbHelper } from '@btapai/playwright-indexeddb';
 The examples below are based on the real end-to-end usage in
 `apps/showcase-e2e/src/playwright-indexeddb.spec.ts`.
 
+## Best practice before initialization
+
+Before calling `init()`, delete the IndexedDB database you want to use in the
+test. This keeps setup deterministic and avoids stale data or leftover schema
+from previous test runs.
+
+Recommended setup pattern:
+
+```ts
+const playwrightIdb = new PlaywrightIdbHelper(page);
+
+await page.goto('/');
+await playwrightIdb.deleteDatabase('FORM_CACHE');
+await playwrightIdb.init('FORM_CACHE');
+await playwrightIdb.createObjectStore('user_form_store');
+```
+
 ## How to clear a database?
 
-The current public API does not expose a dedicated `deleteDatabase()` helper.
-You have two practical options depending on what you need to clear.
+The library supports both clearing store contents and deleting the whole
+database.
 
 ### Clear the contents of a store through the library
 
@@ -26,6 +43,7 @@ store helper:
 const playwrightIdb = new PlaywrightIdbHelper(page);
 
 await page.goto('/');
+await playwrightIdb.deleteDatabase('FORM_CACHE');
 await playwrightIdb.init('FORM_CACHE');
 await playwrightIdb.createObjectStore('user_form_store');
 
@@ -42,24 +60,27 @@ deleted and the store becomes empty again.
 
 ### Delete the whole IndexedDB database through Playwright
 
-If you need to remove the entire browser database, use the native browser API
-inside `page.evaluate()`:
+If you need to remove the whole IndexedDB database, call
+`deleteDatabase()` on `PlaywrightIdbHelper` before you initialize the
+database:
 
 ```ts
-await page.evaluate(async (databaseName) => {
-  const request = indexedDB.deleteDatabase(databaseName);
+const playwrightIdb = new PlaywrightIdbHelper(page);
 
-  await new Promise<void>((resolve, reject) => {
-    request.onerror = () => reject(request.error);
-    request.onblocked = () =>
-      reject(new Error(`Deleting database "${databaseName}" was blocked.`));
-    request.onsuccess = () => resolve();
-  });
-}, 'FORM_CACHE');
+await page.goto('/');
+await playwrightIdb.deleteDatabase('FORM_CACHE');
 ```
 
-Use this approach when you want to fully reset all object stores in the
-database, not only a single store.
+This removes the full database, including every object store inside it, not
+just the current store.
+
+After deletion, initialize the same helper and recreate the store if your test
+needs the database again:
+
+```ts
+await playwrightIdb.init('FORM_CACHE');
+await playwrightIdb.createObjectStore('user_form_store');
+```
 
 ## How to create a database connection?
 
@@ -71,6 +92,7 @@ const page = await browser.newPage();
 await page.goto('/');
 
 const playwrightIdb = new PlaywrightIdbHelper(page);
+await playwrightIdb.deleteDatabase('FORM_CACHE');
 await playwrightIdb.init('FORM_CACHE');
 ```
 
@@ -83,6 +105,7 @@ Important details:
   version:
 
 ```ts
+await playwrightIdb.deleteDatabase('FORM_CACHE');
 await playwrightIdb.init('FORM_CACHE', 1);
 ```
 
@@ -94,6 +117,7 @@ After initializing the database, create an object store with
 ### Standard store with explicit keys
 
 ```ts
+await playwrightIdb.deleteDatabase('FORM_CACHE');
 await playwrightIdb.init('FORM_CACHE');
 const formStore = await playwrightIdb.createObjectStore('user_form_store');
 ```
@@ -103,6 +127,7 @@ const formStore = await playwrightIdb.createObjectStore('user_form_store');
 For auto-increment stores, pass the normal `IDBObjectStoreParameters`:
 
 ```ts
+await playwrightIdb.deleteDatabase('AUTO_INCREMENT');
 await playwrightIdb.init('AUTO_INCREMENT');
 const queueStore = await playwrightIdb.createObjectStore('store', {
   autoIncrement: true,
@@ -208,6 +233,7 @@ the numeric keys for you.
 await page.goto('/playwright-indexeddb/auto-increment');
 
 const playwrightIdb = new PlaywrightIdbHelper(page);
+await playwrightIdb.deleteDatabase('AUTO_INCREMENT');
 await playwrightIdb.init('AUTO_INCREMENT');
 
 const store = await playwrightIdb.createObjectStore('store', {

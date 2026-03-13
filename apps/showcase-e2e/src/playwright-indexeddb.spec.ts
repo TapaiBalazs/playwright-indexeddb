@@ -15,6 +15,7 @@ test.describe('@btapai/playwright-indexeddb', () => {
       playwrightIdb = new PlaywrightIdbHelper(page);
 
       await page.goto('/');
+      await playwrightIdb.deleteDatabase(IDB_DATABASE_NAME);
 
       await playwrightIdb.init(IDB_DATABASE_NAME);
       await playwrightIdb.createObjectStore(IDB_DATABASE_STORE_NAME);
@@ -156,6 +157,7 @@ test.describe('@btapai/playwright-indexeddb', () => {
       playwrightIdb = new PlaywrightIdbHelper(page);
 
       await page.goto('/playwright-indexeddb/auto-increment');
+      await playwrightIdb.deleteDatabase(IDB_DATABASE_NAME);
 
       await playwrightIdb.init(IDB_DATABASE_NAME);
       const store = await playwrightIdb.createObjectStore(

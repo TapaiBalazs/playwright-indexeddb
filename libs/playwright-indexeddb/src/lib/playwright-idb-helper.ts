@@ -6,6 +6,9 @@ import { PlaywrightIdbStoreHelper } from './playwright-idb-store-helper';
  * High-level Playwright helper for opening an IndexedDB database and creating
  * object store helpers for test assertions and setup.
  *
+ * Best practice for deterministic tests is to delete the IndexedDB database
+ * before calling {@link init}, so every test starts from a clean state.
+ *
  * Call {@link init} after navigating to a page, then create or fetch stores
  * through {@link createObjectStore} and {@link getStore}.
  *
@@ -17,6 +20,7 @@ import { PlaywrightIdbStoreHelper } from './playwright-idb-store-helper';
  * await page.goto('/');
  *
  * const playwrightIdb = new PlaywrightIdbHelper(page);
+ * await playwrightIdb.deleteDatabase('FORM_CACHE');
  * await playwrightIdb.init('FORM_CACHE');
  * await playwrightIdb.createObjectStore('user_form_store');
  *
@@ -50,6 +54,8 @@ export class PlaywrightIdbHelper {
    * name and version for later object store operations.
    *
    * Use this once per helper instance before creating or reading object stores.
+   * As a best practice, delete the database first so the browser starts from a
+   * clean IndexedDB state.
    *
    * @param database IndexedDB database name.
    * @param versionConfiguredByUser Optional explicit database version.
@@ -60,6 +66,7 @@ export class PlaywrightIdbHelper {
    * await page.goto('/playwright-indexeddb/auto-increment');
    *
    * const playwrightIdb = new PlaywrightIdbHelper(page);
+   * await playwrightIdb.deleteDatabase('AUTO_INCREMENT');
    * await playwrightIdb.init('AUTO_INCREMENT');
    * ```
    */
@@ -125,15 +132,18 @@ export class PlaywrightIdbHelper {
    * that store in tests.
    *
    * Pass `IDBObjectStoreParameters` when you need options such as
-   * `autoIncrement`.
+   * `autoIncrement`. For deterministic tests, delete the database before
+   * initializing it and creating the object store.
    *
    * @param storeName Object store name to create.
    * @param options Optional IndexedDB object store configuration.
-   * @returns Helper for CRUD and metadata operations on the created store.
+   * @returns Helper for CRUD, metadata, and database delete operations on the
+   * created store.
    * @throws Error when {@link init} has not been called first.
    *
    * @example
    * ```ts
+   * await playwrightIdb.deleteDatabase('FORM_CACHE');
    * await playwrightIdb.init('FORM_CACHE');
    * const store = await playwrightIdb.createObjectStore('user_form_store');
    *
@@ -147,6 +157,7 @@ export class PlaywrightIdbHelper {
    *
    * @example
    * ```ts
+   * await playwrightIdb.deleteDatabase('AUTO_INCREMENT');
    * await playwrightIdb.init('AUTO_INCREMENT');
    * const queueStore = await playwrightIdb.createObjectStore('store', {
    *   autoIncrement: true,
@@ -193,6 +204,7 @@ export class PlaywrightIdbHelper {
 
           const isExisting = openDbConnection.objectStoreNames.contains(store);
           if (isExisting) {
+            openDbConnection.close();
             return;
           }
 
@@ -219,7 +231,10 @@ export class PlaywrightIdbHelper {
             ? storeDbConnection.createObjectStore(store, storeOptions)
             : storeDbConnection.createObjectStore(store);
 
-          return { storeName: newStore.name };
+          const result = { storeName: newStore.name };
+          storeDbConnection.close();
+
+          return result;
         },
         {
           dbName: this.databaseName!,
@@ -267,5 +282,53 @@ export class PlaywrightIdbHelper {
     }
 
     return storeHelper;
+  }
+
+  /**
+   * Deletes an IndexedDB database by name.
+   *
+   * This removes all object stores and data in the database. Best practice is
+   * to call this before {@link init} in test setup so each test starts with a
+   * clean IndexedDB state.
+   *
+   * @param dbToDeleteName Name of the IndexedDB database to delete.
+   * @returns A promise that resolves when the browser confirms the database was
+   * deleted.
+   *
+   * @example
+   * ```ts
+   * const playwrightIdb = new PlaywrightIdbHelper(page);
+   *
+   * await page.goto('/');
+   * await playwrightIdb.deleteDatabase('FORM_CACHE');
+   * await playwrightIdb.init('FORM_CACHE');
+   * await playwrightIdb.createObjectStore('user_form_store');
+   * ```
+   */
+  deleteDatabase(dbToDeleteName: string): Promise<void> {
+    return test.step(`Delete IndexedDB database "${dbToDeleteName}"`, () =>
+      this.page.evaluate(async (databaseName) => {
+        const request = indexedDB.deleteDatabase(databaseName);
+
+        await new Promise<void>((resolve, reject) => {
+          request.onerror = () => {
+            reject(
+              request.error ??
+              new Error(`Deleting database "${databaseName}" failed.`)
+            );
+          };
+          request.onblocked = () => {
+            reject(
+              new Error(
+                `Deleting database "${databaseName}" was blocked by an open connection.`
+              )
+            );
+          };
+          request.onsuccess = () => {
+            resolve();
+          };
+        });
+      }, dbToDeleteName)
+    );
   }
 }

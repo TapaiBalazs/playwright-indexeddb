@@ -4,15 +4,18 @@ import { CrudHelper } from './crud-helper';
 import { MetadataHelper } from './metadata-helper';
 
 /**
- * Store-scoped helper that exposes CRUD and metadata operations for one
- * IndexedDB object store.
+ * Store-scoped helper that exposes CRUD, metadata, and database-level delete
+ * operations for one IndexedDB object store.
  *
  * Instances are created by {@link PlaywrightIdbHelper.createObjectStore} and
  * can then be reused via {@link PlaywrightIdbHelper.getStore}.
+ * Best practice is to delete the IndexedDB database before the helper is
+ * initialized, so store-level operations run against a clean test state.
  *
  * @example
  * ```ts
  * const playwrightIdb = new PlaywrightIdbHelper(page);
+ * await playwrightIdb.deleteDatabase('AUTO_INCREMENT');
  * await playwrightIdb.init('AUTO_INCREMENT');
  * const store = await playwrightIdb.createObjectStore('store', {
  *   autoIncrement: true,
