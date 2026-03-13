@@ -7,6 +7,10 @@ command = "npx"
 args = ["@playwright/mcp@latest"]
 type = "stdio"
 
+[sandbox_workspace_write]
+network_access = true
+web_search="disabled"
+
 [features]
 multi_agent = true
 

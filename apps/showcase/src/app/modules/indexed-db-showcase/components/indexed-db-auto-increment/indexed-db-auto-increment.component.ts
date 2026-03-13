@@ -90,11 +90,9 @@ export class IndexedDbAutoIncrementComponent implements OnInit, OnDestroy {
     if (!value) {
       return;
     }
+    this.inputControl.setValue('');
     this.store$
-      .pipe(
-        addItem(value),
-        tap(() => this.inputControl.reset(''))
-      )
+      .pipe(addItem(value))
       .subscribe();
   }
 

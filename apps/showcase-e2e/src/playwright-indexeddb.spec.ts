@@ -194,7 +194,6 @@ test.describe('@btapai/playwright-indexeddb', () => {
       await test.step(`Add new values: "something, anything, whatever, seriously"`, async () => {
         const queueInput = page.getByTestId('add-to-queue-input');
         await expect(queueInput).toBeEnabled();
-
         await queueInput.fill('something');
         await queueInput.press('Enter');
         await queueInput.fill('anything');
