@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "description": "A Playwright helper library for reading and manipulating data inside IndexedDb",
   "author": "Balázs Tápai <balazs.tapai1990+oss@gmail.com>",
+  "private": false,
   "keywords": [
     "playwright",
     "indexedDB",
