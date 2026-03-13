@@ -1,4 +1,46 @@
-<section class="description">TODO: description</section>
+<section
+  class="description"
+  aria-labelledby="auto-increment-showcase-description"
+>
+  <h2 id="auto-increment-showcase-description">
+    How this auto-increment queue works
+  </h2>
+  <p>
+    This showcase demonstrates an IndexedDB object store that assigns numeric
+    keys automatically as items are added.
+  </p>
+  <p>Use this page in the following way:</p>
+  <ol>
+    <li>
+      Type a value into the queue input and submit the form. Each submitted
+      value is stored as a new IndexedDB record.
+    </li>
+    <li>
+      Review the table below the form. It lists each stored record with its
+      generated key and saved value.
+    </li>
+    <li>
+      Use <strong>Delete first</strong> to remove the earliest record in the
+      queue.
+    </li>
+    <li>
+      Use <strong>Delete last</strong> to remove the most recently stored
+      record.
+    </li>
+    <li>
+      Use <strong>Clear All</strong> to remove every record one by one while
+      showing a status message for each deleted entry.
+    </li>
+    <li>
+      Use <strong>Delete database</strong> to remove the full IndexedDB
+      database for this example.
+    </li>
+  </ol>
+  <p>
+    This example is useful when you need a lightweight queue or append-only
+    list where the browser assigns stable record identifiers.
+  </p>
+</section>
 
 <section class="example">
   <form (submit)="append($event)">

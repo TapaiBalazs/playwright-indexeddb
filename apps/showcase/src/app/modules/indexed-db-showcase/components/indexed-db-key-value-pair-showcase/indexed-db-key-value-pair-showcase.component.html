@@ -1,4 +1,33 @@
-<section class="description">TODO: description</section>
+<section class="description" aria-labelledby="key-value-showcase-description">
+  <h2 id="key-value-showcase-description">How this form cache works</h2>
+  <p>
+    This showcase demonstrates saving a form into IndexedDB as a single
+    key-value entry while the user is typing.
+  </p>
+  <p>Use this page in the following way:</p>
+  <ol>
+    <li>
+      Enter values into the form fields. Required fields must be filled before
+      the form can be submitted.
+    </li>
+    <li>
+      Pause for about one second after typing. The current form state is then
+      written to IndexedDB automatically.
+    </li>
+    <li>
+      Reload the page to confirm that previously saved values are restored from
+      IndexedDB and placed back into the form.
+    </li>
+    <li>
+      Complete the required fields and submit the form. Submission clears the
+      saved IndexedDB entry and resets the form.
+    </li>
+  </ol>
+  <p>
+    This example is useful when you want to preserve in-progress form data
+    between reloads, route changes, or temporary browser interruptions.
+  </p>
+</section>
 <form
   class="form-wrapper"
   #formDirective="ngForm"
