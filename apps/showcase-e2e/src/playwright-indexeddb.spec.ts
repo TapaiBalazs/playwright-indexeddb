@@ -26,21 +26,20 @@ test.describe('@btapai/playwright-indexeddb', () => {
 
       await fillInputFields(page, 'Hans', 'Grüber', 'Germany', 'Berlin');
 
-      await test.step(`Waiting for the debounceTime to start a db write`, () =>
-        page.waitForTimeout(1100));
-
-      const values = await playwrightIdb
-        .getStore(IDB_DATABASE_STORE_NAME)
-        .readItem(IDB_STORE_KEY_NAME);
-
-      expect(values).toEqual({
-        firstName: 'Hans',
-        lastName: 'Grüber',
-        country: 'Germany',
-        city: 'Berlin',
-        address: '',
-        addressOptional: '',
-      });
+      await expect
+        .poll(async () =>
+          playwrightIdb
+            .getStore(IDB_DATABASE_STORE_NAME)
+            .readItem(IDB_STORE_KEY_NAME)
+        )
+        .toEqual({
+          firstName: 'Hans',
+          lastName: 'Grüber',
+          country: 'Germany',
+          city: 'Berlin',
+          address: '',
+          addressOptional: '',
+        });
     });
 
     test(`when the indexedDb is deleted manually and then the page reloaded, the form does not populate`, async () => {
@@ -136,14 +135,13 @@ test.describe('@btapai/playwright-indexeddb', () => {
         await submitButton.click();
       });
 
-      await test.step(`Waiting for the save event and DB write to occur`, () =>
-        page.waitForTimeout(1100));
-
-      const IdbContentsAfterSubmit = await playwrightIdb
-        .getStore(IDB_DATABASE_STORE_NAME)
-        .readItem(IDB_STORE_KEY_NAME);
-
-      expect(IdbContentsAfterSubmit).toBe(undefined);
+      await expect
+        .poll(async () =>
+          playwrightIdb
+            .getStore(IDB_DATABASE_STORE_NAME)
+            .readItem(IDB_STORE_KEY_NAME)
+        )
+        .toBe(undefined);
     });
   });
 
@@ -209,17 +207,17 @@ test.describe('@btapai/playwright-indexeddb', () => {
 
       const store = playwrightIdb.getStore(IDB_DATABASE_STORE_NAME);
 
-      const values = await store.values();
-      expect(values).toHaveLength(7);
-      expect(values).toEqual([
-        'test',
-        'test2',
-        '1337',
-        'something',
-        'anything',
-        'whatever',
-        'seriously',
-      ]);
+      await expect
+        .poll(async () => store.values())
+        .toEqual([
+          'test',
+          'test2',
+          '1337',
+          'something',
+          'anything',
+          'whatever',
+          'seriously',
+        ]);
     });
 
     test(`can delete items by keys`, async () => {
@@ -245,9 +243,7 @@ test.describe('@btapai/playwright-indexeddb', () => {
       });
 
       await test.step(`The playwright-indexeddb library should be able to validate the deleted items`, async () => {
-        const values = await store.values();
-        expect(values).toHaveLength(1);
-        expect(values).toEqual(['test']);
+        await expect.poll(async () => store.values()).toEqual(['test']);
       });
 
       await test.step(`The second and third rows should be deleted and the application should have 2 rows with values "test"`, async () => {
