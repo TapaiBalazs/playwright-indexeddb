@@ -3,6 +3,16 @@
 `@btapai/playwright-indexeddb` is a Playwright helper library for preparing,
 inspecting, and manipulating IndexedDB state from tests.
 
+## How to install
+
+The package is published on npm as `@btapai/playwright-indexeddb`.
+
+Install it with npm:
+
+```bash
+npm install @btapai/playwright-indexeddb
+```
+
 The main entry point is `PlaywrightIdbHelper`:
 
 ```ts
