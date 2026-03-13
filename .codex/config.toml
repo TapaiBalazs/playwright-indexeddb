@@ -2,6 +2,11 @@
 command = "npx"
 args = [ "nx-mcp@latest", "--minimal" ]
 
+[mcp_servers.playwright-mcp]
+command = "npx"
+args = ["@playwright/mcp@latest"]
+type = "stdio"
+
 [features]
 multi_agent = true
 
