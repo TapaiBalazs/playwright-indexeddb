@@ -1,160 +1,74 @@
-import { Component, Inject, OnDestroy, OnInit } from '@angular/core';
+import { BehaviorSubject, EMPTY, firstValueFrom, map, Observable } from 'rxjs';
+import { Component, OnInit } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import {
-  addItem,
-  connectIndexedDb,
-  deleteIndexedDb,
-  deleteItem,
-  entries,
-  getObjectStore,
-  keys,
-} from '@this-dot/rxidb';
-import {
-  BehaviorSubject,
-  concatMap,
-  EMPTY,
-  from,
-  map,
-  Observable,
-  Subject,
-  switchMap,
-  takeLast,
-  tap,
-} from 'rxjs';
-import { take, takeUntil } from 'rxjs/operators';
+  addAutoIncrementItem,
+  createIndexedDbStore,
+  deleteDatabase,
+  deleteIndexedDbItem,
+  ensureAutoIncrementStore,
+  getIndexedDbEntries,
+  IndexedDbEntry,
+} from '../../utils/localforage-indexed-db';
 
 const DATABASE_NAME = 'AUTO_INCREMENT';
+const STORE_NAME = 'store';
 
 @Component({
-    selector: 'showcase-indexed-db-auto-increment',
-    templateUrl: './indexed-db-auto-increment.component.html',
-    styleUrls: ['./indexed-db-auto-increment.component.scss'],
-    providers: [
-        {
-            provide: 'STORE',
-            useValue: connectIndexedDb(DATABASE_NAME).pipe(getObjectStore('store', { autoIncrement: true })),
-        },
-    ],
-    standalone: false
+  selector: 'showcase-indexed-db-auto-increment',
+  templateUrl: './indexed-db-auto-increment.component.html',
+  styleUrls: ['./indexed-db-auto-increment.component.scss'],
+  standalone: false,
 })
-export class IndexedDbAutoIncrementComponent implements OnInit, OnDestroy {
-  private destroy$ = new Subject<void>();
+export class IndexedDbAutoIncrementComponent implements OnInit {
+  private readonly store = createIndexedDbStore(DATABASE_NAME, STORE_NAME);
   private isLoadingSubject = new BehaviorSubject(false);
-  private readonly keys$ = this.store$.pipe(keys());
+  private readonly keyValuesSubject = new BehaviorSubject<
+    IndexedDbEntry<string>[]
+  >([]);
+  private isStoreAvailable = false;
+
   readonly isLoading$ = this.isLoadingSubject.asObservable();
-  readonly keyValues$ = this.store$.pipe(entries());
+  readonly keyValues$ = this.keyValuesSubject.asObservable();
 
   readonly inputControl = new FormControl('', { nonNullable: true });
 
-  constructor(
-    private snackbar: MatSnackBar,
-    @Inject('STORE') private store$: Observable<IDBObjectStore>
-  ) {}
+  constructor(private snackbar: MatSnackBar) {}
 
-  ngOnInit() {
-    this.isLoading$
-      .pipe(
-        tap((isLoading: boolean) => {
-          if (isLoading) {
-            this.inputControl.disable();
-          } else {
-            this.inputControl.enable();
-          }
-        }),
-        takeUntil(this.destroy$)
-      )
-      .subscribe();
-
-    this.store$
-      .pipe(
-        takeUntil(this.destroy$),
-        tap({
-          complete: () => {
-            this.inputControl.disable();
-          },
-        })
-      )
-      .subscribe();
+  ngOnInit(): void {
+    void this.initializeStore();
   }
 
-  ngOnDestroy() {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-
-  append(evt: SubmitEvent) {
+  append(evt: SubmitEvent): void {
     evt.preventDefault();
     const value = this.inputControl.value.trim();
     if (!value) {
       return;
     }
+
     this.inputControl.setValue('');
-    this.store$
-      .pipe(addItem(value))
-      .subscribe();
+    void this.appendValue(value);
   }
 
-  deleteFirst() {
-    this.isLoadingSubject.next(true);
-    this.keys$
-      .pipe(
-        take(1),
-        switchMap(([first]) => {
-          if (!first) {
-            this.isLoadingSubject.next(false);
-            return EMPTY;
-          }
-          return this.store$.pipe(
-            deleteItem(first),
-            tap(() => this.isLoadingSubject.next(false))
-          );
-        })
-      )
-      .subscribe();
+  deleteFirst(): void {
+    this.setLoading(true);
+    void this.deleteBoundaryItem('first');
   }
 
-  deleteLast() {
-    this.isLoadingSubject.next(true);
-    this.keys$
-      .pipe(
-        take(1),
-        switchMap((keys) => {
-          const last = keys[keys.length - 1];
-          if (!last) {
-            this.isLoadingSubject.next(false);
-            return EMPTY;
-          }
-          return this.store$.pipe(
-            deleteItem(last),
-            tap(() => this.isLoadingSubject.next(false))
-          );
-        })
-      )
-      .subscribe();
+  deleteLast(): void {
+    this.setLoading(true);
+    void this.deleteBoundaryItem('last');
   }
 
-  clearAll() {
-    this.isLoadingSubject.next(true);
-    this.keyValues$
-      .pipe(
-        take(1),
-        concatMap((keyValues: { key: IDBValidKey; value: unknown }[]) =>
-          from(keyValues).pipe(
-            concatMap((keyValues) =>
-              this.openSnackbar(keyValues.key, keyValues.value)
-            ),
-            concatMap((key) => this.store$.pipe(deleteItem(key), take(1))),
-            takeLast(1)
-          )
-        ),
-        tap(() => this.isLoadingSubject.next(false))
-      )
-      .subscribe();
+  clearAll(): void {
+    this.setLoading(true);
+    void this.clearAllItems();
   }
 
   deleteDatabase(): void {
-    deleteIndexedDb(DATABASE_NAME).subscribe();
+    this.setLoading(true);
+    void this.removeDatabase();
   }
 
   private openSnackbar(
@@ -169,5 +83,92 @@ export class IndexedDbAutoIncrementComponent implements OnInit, OnDestroy {
       }
     );
     return snackbarRef.afterDismissed().pipe(map(() => key));
+  }
+
+  private async initializeStore(): Promise<void> {
+    try {
+      await ensureAutoIncrementStore(DATABASE_NAME, STORE_NAME);
+      this.isStoreAvailable = true;
+      await this.refreshEntries();
+    } catch {
+      this.isStoreAvailable = false;
+      this.keyValuesSubject.next([]);
+    } finally {
+      this.updateInputControlState();
+    }
+  }
+
+  private async appendValue(value: string): Promise<void> {
+    await ensureAutoIncrementStore(DATABASE_NAME, STORE_NAME);
+    await addAutoIncrementItem(this.store, value);
+    await this.refreshEntries();
+  }
+
+  private async deleteBoundaryItem(position: 'first' | 'last'): Promise<void> {
+    try {
+      const keyValues = await getIndexedDbEntries<string>(this.store);
+      const keyValue =
+        position === 'first'
+          ? keyValues[0]
+          : keyValues[keyValues.length - 1];
+
+      if (!keyValue) {
+        return;
+      }
+
+      await deleteIndexedDbItem(this.store, keyValue.key);
+      await this.refreshEntries();
+    } finally {
+      this.setLoading(false);
+    }
+  }
+
+  private async clearAllItems(): Promise<void> {
+    try {
+      const keyValues = await getIndexedDbEntries<string>(this.store);
+      if (!keyValues.length) {
+        return;
+      }
+
+      for (const keyValue of keyValues) {
+        const key = await firstValueFrom(
+          this.openSnackbar(keyValue.key, keyValue.value)
+        );
+        await deleteIndexedDbItem(this.store, key);
+      }
+
+      await this.refreshEntries();
+    } finally {
+      this.setLoading(false);
+    }
+  }
+
+  private async removeDatabase(): Promise<void> {
+    try {
+      await deleteDatabase(DATABASE_NAME);
+      this.isStoreAvailable = false;
+      this.keyValuesSubject.next([]);
+    } finally {
+      this.setLoading(false);
+    }
+  }
+
+  private async refreshEntries(): Promise<void> {
+    const keyValues = await getIndexedDbEntries<string>(this.store);
+    this.keyValuesSubject.next(keyValues);
+  }
+
+  private setLoading(isLoading: boolean): void {
+    this.isLoadingSubject.next(isLoading);
+    this.updateInputControlState();
+  }
+
+  private updateInputControlState(): void {
+    if (this.isLoadingSubject.value || !this.isStoreAvailable) {
+      this.inputControl.disable();
+      return;
+    }
+
+    this.inputControl.enable();
   }
 }
