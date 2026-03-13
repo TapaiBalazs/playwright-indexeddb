@@ -1,11 +1,257 @@
-# playwright-indexeddb
+# @btapai/playwright-indexeddb
 
-This library was generated with [Nx](https://nx.dev).
+`@btapai/playwright-indexeddb` is a Playwright helper library for preparing,
+inspecting, and manipulating IndexedDB state from tests.
 
-## Building
+The main entry point is `PlaywrightIdbHelper`:
 
-Run `nx build playwright-indexeddb` to build the library.
+```ts
+import { PlaywrightIdbHelper } from '@btapai/playwright-indexeddb';
+```
 
-## Running unit tests
+The examples below are based on the real end-to-end usage in
+`apps/showcase-e2e/src/playwright-indexeddb.spec.ts`.
 
-Run `nx test playwright-indexeddb` to execute the unit tests via [Jest](https://jestjs.io).
+## How to clear a database?
+
+The current public API does not expose a dedicated `deleteDatabase()` helper.
+You have two practical options depending on what you need to clear.
+
+### Clear the contents of a store through the library
+
+If your test only needs an empty object store, delete each key through the
+store helper:
+
+```ts
+const playwrightIdb = new PlaywrightIdbHelper(page);
+
+await page.goto('/');
+await playwrightIdb.init('FORM_CACHE');
+await playwrightIdb.createObjectStore('user_form_store');
+
+const store = playwrightIdb.getStore('user_form_store');
+for (const key of await store.keys()) {
+  await store.deleteItem(key);
+}
+
+expect(await store.keys()).toHaveLength(0);
+```
+
+This matches the form showcase flow where the stored `user_form` entry is
+deleted and the store becomes empty again.
+
+### Delete the whole IndexedDB database through Playwright
+
+If you need to remove the entire browser database, use the native browser API
+inside `page.evaluate()`:
+
+```ts
+await page.evaluate(async (databaseName) => {
+  const request = indexedDB.deleteDatabase(databaseName);
+
+  await new Promise<void>((resolve, reject) => {
+    request.onerror = () => reject(request.error);
+    request.onblocked = () =>
+      reject(new Error(`Deleting database "${databaseName}" was blocked.`));
+    request.onsuccess = () => resolve();
+  });
+}, 'FORM_CACHE');
+```
+
+Use this approach when you want to fully reset all object stores in the
+database, not only a single store.
+
+## How to create a database connection?
+
+Create a Playwright page, navigate to the application, instantiate
+`PlaywrightIdbHelper`, and call `init()`.
+
+```ts
+const page = await browser.newPage();
+await page.goto('/');
+
+const playwrightIdb = new PlaywrightIdbHelper(page);
+await playwrightIdb.init('FORM_CACHE');
+```
+
+Important details:
+
+- Call `page.goto()` before `init()`, otherwise the browser context is not
+  ready for IndexedDB access.
+- `init()` should be called once per helper instance.
+- You can optionally pass a version if your test needs an explicit database
+  version:
+
+```ts
+await playwrightIdb.init('FORM_CACHE', 1);
+```
+
+## How to create an Object Store?
+
+After initializing the database, create an object store with
+`createObjectStore()`.
+
+### Standard store with explicit keys
+
+```ts
+await playwrightIdb.init('FORM_CACHE');
+const formStore = await playwrightIdb.createObjectStore('user_form_store');
+```
+
+### Store with IndexedDB options
+
+For auto-increment stores, pass the normal `IDBObjectStoreParameters`:
+
+```ts
+await playwrightIdb.init('AUTO_INCREMENT');
+const queueStore = await playwrightIdb.createObjectStore('store', {
+  autoIncrement: true,
+});
+```
+
+Once created, you can fetch the same helper later with `getStore()`:
+
+```ts
+const queueStore = playwrightIdb.getStore('store');
+```
+
+## How to make CRUD operations on an Object Store?
+
+The store helper exposes `createItem`, `readItem`, `updateItem`, and
+`deleteItem`.
+
+### Create
+
+Use `createItem(key, value)` for stores that use explicit keys:
+
+```ts
+await playwrightIdb
+  .getStore('user_form_store')
+  .createItem('user_form', {
+    firstName: 'John',
+    lastName: 'McClane',
+    country: 'USA',
+    city: 'New York',
+  });
+```
+
+### Read
+
+Use `readItem(key)` to fetch the stored value:
+
+```ts
+const savedForm = await playwrightIdb
+  .getStore('user_form_store')
+  .readItem<{
+    firstName: string;
+    lastName: string;
+    country: string;
+    city: string;
+  }>('user_form');
+
+expect(savedForm).toEqual({
+  firstName: 'John',
+  lastName: 'McClane',
+  country: 'USA',
+  city: 'New York',
+});
+```
+
+This is the same pattern used by the showcase e2e tests when they poll the
+database to verify that form values were written.
+
+### Update
+
+Use `updateItem(key, value)` to replace the stored value:
+
+```ts
+await playwrightIdb.getStore('store').updateItem(2, 'updated-test2');
+```
+
+### Delete
+
+Use `deleteItem(key)` to remove a value:
+
+```ts
+await playwrightIdb.getStore('store').deleteItem(2);
+```
+
+`deleteItem()` returns the same store helper, so you can immediately continue
+with metadata reads:
+
+```ts
+const keysAfterDeletion = await playwrightIdb
+  .getStore('user_form_store')
+  .deleteItem('user_form')
+  .then((store) => store.keys());
+```
+
+### Read all keys and values
+
+Use `keys()` and `values()` when you want to inspect the full store content:
+
+```ts
+const store = playwrightIdb.getStore('store');
+
+expect(await store.keys()).toEqual([1, 2, 3]);
+expect(await store.values<string>()).toEqual(['test', 'test2', '1337']);
+```
+
+## How to handle Object Stores with autoIncrement?
+
+Auto-increment stores are useful for queue-like data where IndexedDB generates
+the numeric keys for you.
+
+### 1. Create the store with `autoIncrement: true`
+
+```ts
+await page.goto('/playwright-indexeddb/auto-increment');
+
+const playwrightIdb = new PlaywrightIdbHelper(page);
+await playwrightIdb.init('AUTO_INCREMENT');
+
+const store = await playwrightIdb.createObjectStore('store', {
+  autoIncrement: true,
+});
+```
+
+### 2. Append values with `addItem()`
+
+```ts
+await store.addItem('test');
+await store.addItem('test2');
+await store.addItem('1337');
+```
+
+### 3. Inspect the generated keys and values
+
+```ts
+expect(await store.keys()).toEqual([1, 2, 3]);
+expect(await store.values<string>()).toEqual(['test', 'test2', '1337']);
+```
+
+### 4. Update or delete entries by numeric key
+
+```ts
+await store.updateItem(2, 'updated-test2');
+await store.deleteItem(3);
+```
+
+### 5. Verify application behavior against IndexedDB state
+
+This is a common test pattern from the showcase app:
+
+```ts
+await expect.poll(async () => store.values<string>()).toEqual([
+  'test',
+  'test2',
+  '1337',
+  'something',
+  'anything',
+  'whatever',
+  'seriously',
+]);
+```
+
+This makes the library useful both for setup and for validating that UI
+actions changed IndexedDB exactly as expected.

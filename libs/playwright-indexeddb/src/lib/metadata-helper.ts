@@ -1,6 +1,29 @@
 import { Page } from 'playwright';
 
+/**
+ * Low-level helper for reading metadata-like views of an IndexedDB object
+ * store, such as all keys or all values.
+ *
+ * Most consumers should access this behavior through
+ * {@link PlaywrightIdbStoreHelper.keys} and
+ * {@link PlaywrightIdbStoreHelper.values}.
+ *
+ * @example
+ * ```ts
+ * const store = playwrightIdb.getStore('store');
+ *
+ * const keys = await store.keys();
+ * const values = await store.values<string>();
+ * ```
+ */
 export class MetadataHelper {
+  /**
+   * Creates a metadata helper for one IndexedDB object store.
+   *
+   * @param page Playwright page used to execute IndexedDB code.
+   * @param databaseName IndexedDB database name.
+   * @param storeName IndexedDB object store name.
+   */
   constructor(
     private readonly page: Page,
     private readonly databaseName: string,
@@ -8,14 +31,44 @@ export class MetadataHelper {
   ) {
   }
 
+  /**
+   * Returns all keys from the configured object store.
+   *
+   * @returns All keys currently present in the object store.
+   *
+   * @example
+   * ```ts
+   * const keys = await playwrightIdb.getStore('store').keys();
+   * // [1, 2, 3]
+   * ```
+   */
   getKeys(): Promise<(string | number)[]> {
     return this.makeMetadataRequest<string | number>('getAllKeys');
   }
 
+  /**
+   * Returns all values from the configured object store.
+   *
+   * @typeParam T Expected stored value type.
+   * @returns All values currently present in the object store.
+   *
+   * @example
+   * ```ts
+   * const values = await playwrightIdb.getStore('store').values<string>();
+   * // ['test', 'test2', '1337']
+   * ```
+   */
   getValues<T>(): Promise<T[]> {
     return this.makeMetadataRequest<T>('getAll')
   }
 
+  /**
+   * Executes a metadata request in the page context and returns the result
+   * array from the configured object store.
+   *
+   * @param operation Metadata operation to execute.
+   * @returns Result array for the requested metadata operation.
+   */
   private async makeMetadataRequest<T>(
     operation: 'getAllKeys' | 'getAll'
   ): Promise<T[]> {

@@ -2,14 +2,67 @@ import { test } from '@playwright/test';
 import { Page } from 'playwright';
 import { PlaywrightIdbStoreHelper } from './playwright-idb-store-helper';
 
+/**
+ * High-level Playwright helper for opening an IndexedDB database and creating
+ * object store helpers for test assertions and setup.
+ *
+ * Call {@link init} after navigating to a page, then create or fetch stores
+ * through {@link createObjectStore} and {@link getStore}.
+ *
+ * @example
+ * ```ts
+ * import { PlaywrightIdbHelper } from '@btapai/playwright-indexeddb';
+ *
+ * const page = await browser.newPage();
+ * await page.goto('/');
+ *
+ * const playwrightIdb = new PlaywrightIdbHelper(page);
+ * await playwrightIdb.init('FORM_CACHE');
+ * await playwrightIdb.createObjectStore('user_form_store');
+ *
+ * const formStore = playwrightIdb.getStore('user_form_store');
+ * await formStore.createItem('user_form', {
+ *   firstName: 'John',
+ *   lastName: 'McClane',
+ *   country: 'USA',
+ *   city: 'New York',
+ * });
+ * ```
+ */
 export class PlaywrightIdbHelper {
   private databaseName?: string;
   private databaseVersion?: number;
 
   private storeHelpers: Map<string, PlaywrightIdbStoreHelper> = new Map();
 
+  /**
+   * Creates a helper that operates on the given Playwright page.
+   *
+   * The page must already be navigated to a document where `window.indexedDB`
+   * is available before calling {@link init}.
+   *
+   * @param page Playwright page that hosts the IndexedDB instance.
+   */
   constructor(private readonly page: Page) {}
 
+  /**
+   * Opens an IndexedDB database in the browser context and stores its resolved
+   * name and version for later object store operations.
+   *
+   * Use this once per helper instance before creating or reading object stores.
+   *
+   * @param database IndexedDB database name.
+   * @param versionConfiguredByUser Optional explicit database version.
+   * @throws Error when the helper has already been initialized.
+   *
+   * @example
+   * ```ts
+   * await page.goto('/playwright-indexeddb/auto-increment');
+   *
+   * const playwrightIdb = new PlaywrightIdbHelper(page);
+   * await playwrightIdb.init('AUTO_INCREMENT');
+   * ```
+   */
   async init(
     database: string,
     versionConfiguredByUser?: number
@@ -67,6 +120,42 @@ export class PlaywrightIdbHelper {
     this.databaseVersion = databaseVersion;
   }
 
+  /**
+   * Creates an IndexedDB object store and returns a helper for interacting with
+   * that store in tests.
+   *
+   * Pass `IDBObjectStoreParameters` when you need options such as
+   * `autoIncrement`.
+   *
+   * @param storeName Object store name to create.
+   * @param options Optional IndexedDB object store configuration.
+   * @returns Helper for CRUD and metadata operations on the created store.
+   * @throws Error when {@link init} has not been called first.
+   *
+   * @example
+   * ```ts
+   * await playwrightIdb.init('FORM_CACHE');
+   * const store = await playwrightIdb.createObjectStore('user_form_store');
+   *
+   * await store.createItem('user_form', {
+   *   firstName: 'John',
+   *   lastName: 'McClane',
+   *   country: 'USA',
+   *   city: 'New York',
+   * });
+   * ```
+   *
+   * @example
+   * ```ts
+   * await playwrightIdb.init('AUTO_INCREMENT');
+   * const queueStore = await playwrightIdb.createObjectStore('store', {
+   *   autoIncrement: true,
+   * });
+   *
+   * await queueStore.addItem('test');
+   * await queueStore.addItem('test2');
+   * ```
+   */
   async createObjectStore(
     storeName: string,
     options?: IDBObjectStoreParameters
@@ -145,6 +234,30 @@ export class PlaywrightIdbHelper {
 
     return this.getStore(storeName);
   }
+
+  /**
+   * Returns a previously created object store helper by name.
+   *
+   * This is useful once the store has already been created in test setup and
+   * you want to reuse the same helper in assertions.
+   *
+   * @param storeName Name of the existing object store helper to retrieve.
+   * @returns Helper bound to the requested object store.
+   * @throws Error when the store has not been created through
+   * {@link createObjectStore}.
+   *
+   * @example
+   * ```ts
+   * const store = playwrightIdb.getStore('user_form_store');
+   *
+   * const savedForm = await store.readItem<{
+   *   firstName: string;
+   *   lastName: string;
+   *   country: string;
+   *   city: string;
+   * }>('user_form');
+   * ```
+   */
   getStore(storeName: string): PlaywrightIdbStoreHelper {
     const storeHelper = this.storeHelpers.get(storeName);
     if (!storeHelper) {
