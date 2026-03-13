@@ -44,17 +44,16 @@ interface UserForm {
 }
 
 @Component({
-  selector: 'showcase-indexed-db-key-value-pair-showcase',
-  templateUrl: './indexed-db-key-value-pair-showcase.component.html',
-  styleUrls: ['./indexed-db-key-value-pair-showcase.component.scss'],
-  providers: [
-    {
-      provide: 'STORE',
-      useValue: connectIndexedDb(DATABASE_NAME).pipe(
-        getObjectStore('user_form_store')
-      ),
-    },
-  ],
+    selector: 'showcase-indexed-db-key-value-pair-showcase',
+    templateUrl: './indexed-db-key-value-pair-showcase.component.html',
+    styleUrls: ['./indexed-db-key-value-pair-showcase.component.scss'],
+    providers: [
+        {
+            provide: 'STORE',
+            useValue: connectIndexedDb(DATABASE_NAME).pipe(getObjectStore('user_form_store')),
+        },
+    ],
+    standalone: false
 })
 export class IndexedDbKeyValuePairShowcaseComponent
   implements AfterViewInit, OnInit, OnDestroy
@@ -92,6 +91,7 @@ export class IndexedDbKeyValuePairShowcaseComponent
     this.formGroup.valueChanges
       .pipe(
         debounceTime(1000),
+        filter((value) => Object.values(value).some((entry) => entry !== null)),
         switchMap((value) => this.store$.pipe(setItem(USER_FORM_KEY, value))),
         tap(() => this.savedToIDB$.next()),
         takeUntil(this.destroy$)

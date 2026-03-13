@@ -27,17 +27,16 @@ import { take, takeUntil } from 'rxjs/operators';
 const DATABASE_NAME = 'AUTO_INCREMENT';
 
 @Component({
-  selector: 'showcase-indexed-db-auto-increment',
-  templateUrl: './indexed-db-auto-increment.component.html',
-  styleUrls: ['./indexed-db-auto-increment.component.scss'],
-  providers: [
-    {
-      provide: 'STORE',
-      useValue: connectIndexedDb(DATABASE_NAME).pipe(
-        getObjectStore('store', { autoIncrement: true })
-      ),
-    },
-  ],
+    selector: 'showcase-indexed-db-auto-increment',
+    templateUrl: './indexed-db-auto-increment.component.html',
+    styleUrls: ['./indexed-db-auto-increment.component.scss'],
+    providers: [
+        {
+            provide: 'STORE',
+            useValue: connectIndexedDb(DATABASE_NAME).pipe(getObjectStore('store', { autoIncrement: true })),
+        },
+    ],
+    standalone: false
 })
 export class IndexedDbAutoIncrementComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

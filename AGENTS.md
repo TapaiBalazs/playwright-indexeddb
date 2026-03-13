@@ -20,9 +20,4 @@
 - DON'T USE for: basic generator syntax (`nx g @nx/react:app`), standard commands, things you already know
 - The `nx-generate` skill handles generator discovery internally - don't call nx_docs just to look up generator syntax
 
-## Playwright E2E in This Repo
-
-- Before running any Playwright e2e command in this repository, ALWAYS set `PLAYWRIGHT_BROWSERS_PATH` to `<repository-root>/.playwright-browsers`
-- Apply this to both browser installation and e2e execution commands so agents do not use global cache locations
-
 <!-- nx configuration end-->
